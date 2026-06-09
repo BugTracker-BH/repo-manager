@@ -1,0 +1,50 @@
+set -euo pipefail
+
+          declare -A REPOS=(
+            ["nitrojs/nitro"]="nitro"
+            ["nuxt/nuxt"]="nuxt"
+            ["sveltejs/svelte"]="svelte"
+            ["vercel-labs/agent-skills"]="agent-skills"
+            ["vercel-labs/skills"]="skills"
+            ["vercel/ai"]="ai"
+            ["vercel/async-sema"]="async-sema"
+            ["vercel/flags"]="flags"
+            ["vercel/ms"]="ms"
+            ["vercel/next.js"]="nextjs" 
+            ["vercel/swr"]="swr"
+            ["vercel/turborepo"]="turborepo"
+            ["vercel/vercel"]="vercel"
+            ["vercel/workflow"]="workflow"
+          )
+
+          for source_repo in "${!REPOS[@]}"; do
+            repo_name="${REPOS[$source_repo]}"
+            echo "=================================================="
+            echo "Processing $source_repo into $TARGET/$repo_name..."
+            
+            # 1. Create the new repository using GitHub CLI
+            gh repo create "$TARGET/$repo_name" --$VISIBILITY || echo "Repo $TARGET/$repo_name might already exist."
+
+            # 2. Clone using just the PAT for auth
+            git clone --depth 1 "https://${PAT}@github.com/$source_repo.git" "$repo_name"
+
+            # 3. Enter directory, strip old history, and re-initialize
+            cd "$repo_name"
+            rm -rf .git
+            git init
+            git checkout -b main
+            
+            # 4. Commit the snapshot
+            git add .
+            git commit -m "Initial snapshot from $source_repo" || echo "Nothing to commit"
+
+            # 5. Push using just the PAT in the URL
+            git remote add origin "https://${PAT}@github.com/$TARGET/$repo_name.git"
+            git push -u origin main --force
+            
+            # 6. Cleanup
+            cd ..
+            rm -rf "$repo_name"
+            
+            echo "Successfully duplicated $source_repo to $TARGET/$repo_name!"
+          done
